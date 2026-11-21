@@ -1,0 +1,35 @@
+cff-version: 1.2.0
+title: "Search2Adapt: Multi-Agent Collaborative Tree Search for Source-Free Unsupervised Domain Adaptation"
+message: "If you use this software, please cite it using the metadata from this file."
+type: software
+authors:
+  - family-names: Shi
+    given-names: Yulong
+  - family-names: Zhang
+    given-names: Wenwen
+  - family-names: Li
+    given-names: Ziyi
+  - family-names: Qi
+    given-names: Lin
+repository-code: "https://github.com/derekshiii/Search2Adapt"
+url: "https://doi.org/10.1145/3767308.3835160"
+keywords:
+  - source-free domain adaptation
+  - medical image segmentation
+  - vision foundation model
+  - multi-agent
+preferred-citation:
+  type: article
+  title: "Search2Adapt: Multi-Agent Collaborative Tree Search for Source-Free Unsupervised Domain Adaptation"
+  authors:
+    - family-names: Shi
+      given-names: Yulong
+    - family-names: Zhang
+      given-names: Wenwen
+    - family-names: Li
+      given-names: Ziyi
+    - family-names: Qi
+      given-names: Lin
+  doi: "10.1145/3767308.3835160"
+  collection-title: "Proceedings of the 34th ACM International Conference on Multimedia"
+  year: 2026

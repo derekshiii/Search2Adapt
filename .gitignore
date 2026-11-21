@@ -1,0 +1,81 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+.tox/
+.nox/
+
+# Type checkers / linters
+.mypy_cache/
+.ruff_cache/
+.dmypy.json
+
+# Editors / IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Search2Adapt run artefacts
+S2A_Results/
+results/
+*.log
+strategy_memory.json
+memory_*.json
+final_pseudolabels/
+temp/
+bp_work/
+sam3_work/
+preprocessed_*.nii.gz
+step_*.nii.gz
+dual_expert_*.nii.gz
+eval_*.png
+
+# Datasets and checkpoints
+*.nii.gz
+*.nii
+*.ckpt
+*.pt
+*.pth
+
+# ... but keep the tiny synthetic fixtures used by the test suite
+!tests/fixtures/**
+
+# Tests are not part of the public release
+tests/

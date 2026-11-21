@@ -1,0 +1,14 @@
+# Core runtime dependencies of the Search2Adapt pipeline.
+#
+# The two vision foundation models run in their own conda environments and
+# therefore need extra packages that are NOT listed here — see
+# docs/VFM_SETUP.md.
+
+numpy>=1.24
+scipy>=1.10
+nibabel>=5.1
+Pillow>=9.5
+openai>=1.30
+tqdm>=4.66
+psutil>=5.9
+monai>=1.3
