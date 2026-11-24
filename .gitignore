@@ -54,6 +54,7 @@ Thumbs.db
 
 # Search2Adapt run artefacts
 S2A_Results/
+S2A_Repro_*/
 results/
 *.log
 strategy_memory.json

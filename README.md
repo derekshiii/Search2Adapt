@@ -5,7 +5,6 @@
 Yulong Shi, Wenwen Zhang, Ziyi Li, Lin Qi — *ACM Multimedia 2026 (MM '26)*
 [Paper DOI: 10.1145/3767308.3835160](https://doi.org/10.1145/3767308.3835160) · [ACM DL](https://dl.acm.org/doi/10.1145/3767308.3835160)
 
-**Official reproduction of the paper:** [Search2Adapt: Multi-Agent Collaborative Tree Search for Source-Free Unsupervised Domain Adaptation](https://dl.acm.org/doi/10.1145/3767308.3835160) (ACM MM '26).
 
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/downloads/)
 
@@ -17,9 +16,13 @@ Source-Free Unsupervised Domain Adaptation (SFUDA) aims to mitigate domain shift
 
 **Search2Adapt** reformulates SFUDA as a **dynamic decision-making problem**. Four VLM-driven agents — *Perceptor*, *Strategist*, *Executor*, *Evaluator* — collaborate in a closed loop through a shared memory. At its core, **CoTS** (Collaborative Tree Search) explores a rich action space of vision foundation models (VFMs) and segmentation operators, scoring candidate plans with a **Collaborative Action-Value Function (CAVF)** that combines exploitation, √2 exploration, and a diversity bonus.
 
-Because ground truth is unavailable in the SFUDA setting, the Evaluator produces a **multimodal and anatomy-aware reward** that fuses geometric feature translation with visual evidence grids, judged by VLM reasoning over four dimensions: anatomical plausibility, morphological consistency, boundary precision, and false positives. A **CoT reflection** lets the Strategist calibrate the Evaluator, and a **dynamic prior memory** reuses successful trajectories across samples.
+Because ground truth is unavailable in the SFUDA setting, the Evaluator estimates pseudo-label quality from programmatic geometric features and VLM reasoning. A visual evidence-grid evaluation path is also included, but the default search loop currently uses the text/geometric evaluator. A **CoT reflection** lets the Strategist calibrate the Evaluator, and a **dynamic prior memory** reuses successful trajectories across samples.
 
 The discovered pseudo-labels are then distilled into a lightweight student model, compressing ~862M (SAM3) and ~371M (BiomedParse) parameters into a ~31M deployable network.
+
+![Search2Adapt overall framework](Figure1_WholeFramework.png)
+
+*Figure 1: Overall Search2Adapt framework, including the toolbox, four agents, shared memory, and collaborative tree search.*
 
 ---
 
@@ -30,7 +33,7 @@ The discovered pseudo-labels are then distilled into a lightweight student model
 A tree node `v` represents one **refinement plan** (a complete tool chain) and its resulting state. Node selection follows the **Collaborative Action-Value Function**:
 
 ```
-CAVF(v) = V(v) + w · ln(N_parent) / sqrt(N(v)) + λ · D(v)
+CAVF(v) = V(v) + w · sqrt(ln(N_parent) / N(v)) + λ · D(v)
 D(v)    = 1 / sqrt(c(σ_v))
 ```
 
@@ -51,13 +54,19 @@ The diversity term discourages re-exploring identical tool combinations and prom
 | **Executor** | Applies the selected plan deterministically | `(s_t, π) → s_t₊₁` |
 | **Evaluator** | Estimates pseudo-label quality, produces the reward | `s_t → R ∈ [0,1]` |
 
-### Multimodal and anatomy-aware reward
+![Detailed Search2Adapt pseudo-label generation process](Figure3_Detail_Illustration.png)
 
-The Evaluator never sees ground truth. It compiles **visual evidence grids** (random 2D slices with the pseudo-label overlaid) and a **textual geometric profile** (connected components, spatial extent, boundary smoothness), then reasons with CoT over four dimensions:
+*Figure 3: Detailed pseudo-label generation process, from perception and plan search to evaluation, execution, and memory updates.*
+
+### Anatomy-aware reward
+
+The Evaluator never sees ground truth. The default search path compiles a **textual geometric profile** (connected components, spatial extent, boundary smoothness) and uses VLM reasoning over four dimensions:
 
 ```
 R = w_anat·R_anat + w_morph·R_morph + w_bound·R_bound + w_fp·R_fp
 ```
+
+`Evaluator.run(..., mode="visual")` can additionally compile overlaid slice grids, but this mode is not called by the default search loop.
 
 ### Toolbox (action space)
 
@@ -133,21 +142,21 @@ export nnUNet_results=/path/to/nnUNet_results
 export SEARCH2ADAPT_NNUNET_BIN=/path/to/envs/nnunet/bin
 ```
 
-### Paper-aligned defaults
+### Key defaults
 
-`search2adapt/config.py` ships the paper's hyper-parameters as defaults:
+`search2adapt/config.py` exposes the main search and runner parameters:
 
-| Parameter | Value | Paper reference |
+| Parameter | Value | Notes |
 |---|---|---|
-| `mcts.exploration_weight` (`w`) | `2**0.5` (√2) | Implementation Details |
-| `mcts.diversity_weight` (`λ`) | `0.1` | Implementation Details |
-| `mcts.branching_factor` | `4` | "candidate plan variants … fixed at 4" |
-| `mcts.top_k_execute` | `4` | "top-K execution budget … fixed at 4" |
+| `mcts.exploration_weight` (`w`) | `2**0.5` (√2) | CAVF exploration weight |
+| `mcts.diversity_weight` (`λ`) | `0.1` | CAVF diversity coefficient |
+| `mcts.branching_factor` | `4` | plan expansion branching factor |
+| `mcts.top_k_execute` | `4` | top-K plans executed in phase 2 |
 | `mcts.enable_refinement` | `True` | ablation switch |
 | `mcts.enable_cot_reflection` | `True` | ablation switch |
-| `toolbox.bp_slice_batch_size` | `4` | BiomedParse runner default |
+| `toolbox.bp_slice_batch_size` | `8` | BiomedParse runner default |
 | `toolbox.bp_interpolate_size` | `512` | BiomedParse runner default |
-| distillation epochs | `300` | "knowledge distillation for 300 epochs" |
+| `distillation.num_epochs` | `300` | stored in config; not currently forwarded to the nnU-Net training command |
 
 ---
 
@@ -195,46 +204,18 @@ result = run_full_pipeline(
 )
 ```
 
-### Ablations
-
-```bash
-search2adapt run --dataset ... --organs ... --ablation wo_cots
-```
-
-| Preset | Paper row | Effect |
-|---|---|---|
-| `full` | Search2Adapt | complete system |
-| `wo_perceptor` | w/o Perceptor | Strategist and Evaluator lose the domain profile |
-| `wo_cots` | w/o CoTS | refinement bypassed — initial VFM pseudo-label only |
-| `wo_cot_diversity` | w/o CoT Diversity | diversity bonus removed from CAVF |
-| `wo_cot_reflection` | w/o CoT Reflection | Strategist cannot calibrate the Evaluator |
-| `wo_vfm_postprocess` | w/o VFM Postprocess | VFM proposals only, no post-processing operators |
-
-Table 5's **No Adaptation** row is not a preset: the paper defines it as the
-source model evaluated directly on the target domain, which this pipeline never
-produces (SFUDA has no source inference step). Reproduce it by running your
-pretrained source nnU-Net over the target images and scoring the output with
-`search2adapt evaluate`.
-
-### Metrics
-
-```python
-from search2adapt.metrics import compute_dice, compute_asd
-```
-
-`search2adapt evaluate` computes DICE and ASD against a ground-truth directory; `--compute-hd` additionally reports HD95.
-
----
 
 ## Project layout
 
 ```
 Search2Adapt/
+├── Figure1_WholeFramework.png
+├── Figure3_Detail_Illustration.png
 ├── search2adapt/
 │   ├── agents/
 │   │   ├── perceptor.py      # domain perception agent (VLM-based)
 │   │   ├── strategist.py     # plan proposal + CoT reflection
-│   │   ├── evaluator.py      # multimodal, anatomy-aware reward
+│   │   ├── evaluator.py      # text/geometric reward + optional visual evaluation
 │   │   ├── executor.py       # deterministic tool execution
 │   │   └── base.py           # shared base classes and LLM/VLM helpers
 │   ├── mcts/

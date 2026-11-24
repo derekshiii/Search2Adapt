@@ -5,7 +5,7 @@ Search2Adapt uses two vision foundation models as frozen proposal generators ins
 | Model | Role | Parameters | Conditioning |
 |---|---|---|---|
 | **BiomedParse v2** (3D) | semantic proposals | ~371M | text prompt |
-| **SAM 3** | geometric / boundary proposals | ~862M | text prompt + bounding box |
+| **SAM 3** | geometric / boundary proposals | ~862M | text prompt + optional bounding box |
 
 Both run in **their own conda environments** and are launched as subprocesses by the `Executor` agent, so this package never imports `torch`, `hydra` or `sam3` at runtime. This keeps the core install light and isolates dependency conflicts.
 
@@ -128,10 +128,10 @@ The runner takes a JSON file mapping case name → prompts:
 | Field | Meaning |
 |---|---|
 | `image` | path to the input `.nii.gz` |
-| `slice_axis` | axis to slice along (optional; defaults to the axis with the most slices) |
+| `slice_axis` | axis to slice along (optional; defaults to the axis with the fewest slices, using axis 2 for ties) |
 | `prompts[].obj_id` | integer identifier of the object within the case |
 | `prompts[].text` | text prompt for the organ |
-| `prompts[].box` | `[x0, y0, x1, y1]` bounding box in slice pixel coordinates (optional) |
+| `prompts[].box` | `[x, y, width, height]` bounding box in slice pixel coordinates (optional) |
 | `prompts[].key_slice` | index of the slice the prompt is placed on |
 
 ### 6. Smoke test
@@ -155,9 +155,13 @@ first — and remembers the working configuration for the rest of the session.
 
 ## Dual-expert mode
 
-`--initial-method dual_expert` runs BiomedParse first, derives per-organ bounding boxes from its
-output, and then refines each organ with SAM 3 using text + box prompts. The two masks are fused
-with a union strategy. This needs **both** environments to be configured.
+`--initial-method dual_expert` runs BiomedParse first and derives a key slice and bounding box for
+each organ that BiomedParse detects. SAM3 then refines those organs with **text + box** prompts;
+organs absent from the BiomedParse mask fall back to text-only prompts. The two masks are fused
+with **BiomedParse priority**, meaning SAM3 only fills voxels where BiomedParse predicts background.
+This needs **both** environments to be configured. The union can also import SAM3 false positives,
+so `biomedparse` remains the default initializer; treat `dual_expert` as experimental and compare
+it against the BiomedParse baseline before enabling it for a dataset.
 
 ---
 

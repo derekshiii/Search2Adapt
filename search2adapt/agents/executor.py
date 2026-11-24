@@ -510,14 +510,15 @@ class Executor(BaseAgent):
         ext = ".nii.gz"
         bp_out = os.path.join(case_dir, f"dual_expert_bp_{state.step:02d}{ext}")
         bp_out = self._execute_vfm(state, bp_action, bp_out)
+        bp_state = state.clone(new_mask_path=bp_out, new_step=state.step)
 
         sam3_action = Action(
             tool_id="sam3",
-            params={"use_visual_prompts": False, **action.params},
+            params={"use_visual_prompts": True, **action.params},
             description="dual_expert sub-step: SAM3",
         )
         sam3_out = os.path.join(case_dir, f"dual_expert_sam3_{state.step:02d}{ext}")
-        sam3_out = self._execute_vfm(state, sam3_action, sam3_out)
+        sam3_out = self._execute_vfm(bp_state, sam3_action, sam3_out)
 
         self._fuse_dual_masks(bp_out, sam3_out, output_path)
         self.logger.info(
@@ -546,7 +547,7 @@ class Executor(BaseAgent):
         Args:
             image_path: path to NIfTI image
             case_id: case identifier
-            method: "biomedparse", "sam3", or "dual"
+            method: "biomedparse", "sam3", or "dual_expert" (alias: "dual")
             _is_fallback: internal flag to prevent infinite recursion
 
         Returns:
@@ -619,23 +620,18 @@ class Executor(BaseAgent):
                     image_path, case_id, method="biomedparse", _is_fallback=True
                 )
 
-        elif method == "dual":
-            bp_state = self.generate_initial_pseudolabel(
-                image_path, case_id, method="biomedparse"
+        elif method in ("dual_expert", "dual"):
+            action = Action(
+                tool_id="dual_expert",
+                params={},
+                description="Initial pseudo-label via BiomedParse + SAM3 fusion",
             )
-            sam3_state = self.generate_initial_pseudolabel(
-                image_path, case_id, method="sam3"
-            )
-            fused_path = os.path.join(case_dir, f"step_00_fused{ext}")
-            self._fuse_dual_masks(
-                bp_state.mask_path, sam3_state.mask_path, fused_path
-            )
-            return MaskState(
-                image_path=image_path,
-                mask_path=fused_path,
-                case_id=case_id,
-                step=0,
-            )
+            new_state = self.run(state, action)
+            if new_state.mask_path and os.path.exists(new_state.mask_path):
+                shutil.move(new_state.mask_path, output_path)
+                new_state.mask_path = output_path
+            new_state.step = 0
+            return new_state
         else:
             raise ValueError(f"Unknown initial method: {method}")
 
